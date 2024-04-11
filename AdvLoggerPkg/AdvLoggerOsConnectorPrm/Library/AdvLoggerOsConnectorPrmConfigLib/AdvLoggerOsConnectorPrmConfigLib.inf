@@ -41,3 +41,4 @@
   UefiBootServicesTableLib
   UefiDriverEntryPoint
   UefiRuntimeLib
+  DxeServicesTableLib

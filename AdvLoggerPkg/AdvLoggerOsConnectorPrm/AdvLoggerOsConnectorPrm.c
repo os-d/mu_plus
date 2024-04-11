@@ -12,11 +12,12 @@
 #include <Library/BaseLib.h>
 #include <Library/PrintLib.h>
 #include <Library/UefiLib.h>
+#include <Library/BaseMemoryLib.h>
 #include <AdvancedLoggerInternal.h>
 
 typedef struct {
   VOID *OutputBuffer;
-  UINT32 OutputBufferSize;
+  UINT32 *OutputBufferSize;
 } ADVANCED_LOGGER_PRM_PARAMETER_BUFFER;
 
 //
@@ -54,15 +55,15 @@ ValidateInfoBlock (
     return FALSE;
   }
 
-  if (LoggerInfo->LogBuffer != (PA_FROM_PTR (LoggerInfo + 1))) {
-    return FALSE;
-  }
+  // if (LoggerInfo->LogBuffer != (PA_FROM_PTR (LoggerInfo + 1))) {
+  //   return FALSE;
+  // }
 
-  if ((LoggerInfo->LogCurrent > LoggerInfo->LogBuffer + LoggerInfo->LogBufferSize) ||
-      (LoggerInfo->LogCurrent < LoggerInfo->LogBuffer))
-  {
-    return FALSE;
-  }
+  // if ((LoggerInfo->LogCurrent > LoggerInfo->LogBuffer + LoggerInfo->LogBufferSize) ||
+  //     (LoggerInfo->LogCurrent < LoggerInfo->LogBuffer))
+  // {
+  //   return FALSE;
+  // }
 
   return TRUE;
 }
@@ -81,10 +82,11 @@ ValidateInfoBlock (
 **/
 PRM_HANDLER_EXPORT (AdvLoggerOsConnectorPrmHandler) {
   ADVANCED_LOGGER_INFO *LoggerInfo;
+  ADVANCED_LOGGER_PRM_PARAMETER_BUFFER *ParamBuf;
 
-  // if (ParameterBuffer == NULL || ContextBuffer == NULL) {
-  //   return EFI_INVALID_PARAMETER;
-  // }
+  if (ParameterBuffer == NULL || ContextBuffer == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
 
   if (ContextBuffer->StaticDataBuffer == NULL) {
     return EFI_INVALID_PARAMETER;
@@ -100,11 +102,28 @@ PRM_HANDLER_EXPORT (AdvLoggerOsConnectorPrmHandler) {
     return EFI_NOT_FOUND;
   }
 
-  LoggerInfo = *(ADVANCED_LOGGER_INFO **)ContextBuffer->StaticDataBuffer->Data;
+  LoggerInfo = (ADVANCED_LOGGER_INFO *)ContextBuffer->StaticDataBuffer->Data;
 
   if (!ValidateInfoBlock (LoggerInfo)) {
     return EFI_COMPROMISED_DATA;
   }
+
+  ParamBuf = (ADVANCED_LOGGER_PRM_PARAMETER_BUFFER *)ParameterBuffer;
+
+  if (ParamBuf->OutputBufferSize == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (*(ParamBuf->OutputBufferSize) < (LoggerInfo->LogBufferSize + sizeof (*LoggerInfo))) {
+    *ParamBuf->OutputBufferSize = LoggerInfo->LogBufferSize + sizeof (*LoggerInfo);
+    return EFI_BUFFER_TOO_SMALL;
+  }
+
+  if (ParamBuf->OutputBuffer == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  CopyMem (ParamBuf->OutputBuffer, (CONST VOID *)LoggerInfo, LoggerInfo->LogBufferSize + sizeof (*LoggerInfo));
 
   return EFI_SUCCESS;
 }

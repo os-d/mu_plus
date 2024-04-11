@@ -110,7 +110,7 @@ STATIC_ASSERT (sizeof (ADVANCED_LOGGER_INFO) % 8 == 0, "Logger Info Misaligned")
 // Access methods to convert between EFI_PHYSICAL_ADDRESS and UINT64 or CHAR8*
 //
 #define UINT64_FROM_PA(Address)  ((UINT64) (UINTN) (Address))
-#define ALI_FROM_PA(Address)     ((ADVANCED_LOGGER_INFO *) (UINTN) (Address))
+#define ALI_FROM_PA(Address)     ((ADVANCED_LOGGER_INFO *) (UINTN) (((UINT8 *)(UINTN)Address) + 8))
 #define CHAR8_FROM_PA(Address)   ((CHAR8 *) (UINTN) (Address))
 
 #define PA_FROM_PTR(Address)  ((EFI_PHYSICAL_ADDRESS) (UINTN) (Address))

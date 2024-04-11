@@ -199,13 +199,13 @@ InstallPermanentMemoryBuffer (
     DEBUG ((DEBUG_ERROR, "%a: Advanced Logger Hob not found\n", __FUNCTION__));
   } else {
     LogPtr     = (ADVANCED_LOGGER_PTR *)GET_GUID_HOB_DATA (GuidHob);
-    LoggerInfo = ALI_FROM_PA (LogPtr->LogBuffer);
+    LoggerInfo = (ADVANCED_LOGGER_INFO *)(UINTN)LogPtr->LogBuffer;
     if (!LoggerInfo->InPermanentRAM) {
       //
       // Must be PeiCore allocated small memory buffer
       //
       Status = PeiServicesAllocatePages (
-                 EfiReservedMemoryType,
+                 EfiRuntimeServicesData,
                  FixedPcdGet32 (PcdAdvancedLoggerPages),
                  &NewLogBuffer
                  );
@@ -223,7 +223,7 @@ InstallPermanentMemoryBuffer (
             );
         }
 
-        NewLoggerInfo->LogBufferSize  = EFI_PAGES_TO_SIZE (FixedPcdGet32 (PcdAdvancedLoggerPages)) - sizeof (ADVANCED_LOGGER_INFO);
+        NewLoggerInfo->LogBufferSize  = EFI_PAGES_TO_SIZE (FixedPcdGet32 (PcdAdvancedLoggerPages)) - sizeof (ADVANCED_LOGGER_INFO) - 8;
         NewLoggerInfo->LogCurrent     = PA_FROM_PTR (CHAR8_FROM_PA (NewLoggerInfo->LogBuffer) + CurrentLogOffset);
         NewLoggerInfo->InPermanentRAM = TRUE;
 
@@ -344,7 +344,7 @@ GetSecLoggerInfo (
         (LogPtr->Signature == ADVANCED_LOGGER_PTR_SIGNATURE) &&
         (LogPtr->LogBuffer != 0ULL))
     {
-      LoggerInfoSec = ALI_FROM_PA (LogPtr->LogBuffer);
+      LoggerInfoSec = (ADVANCED_LOGGER_INFO *)(UINTN)LogPtr->LogBuffer;
       if (!LoggerInfoSec->HdwPortInitialized) {
         AdvancedLoggerHdwPortInitialize ();
         LoggerInfoSec->HdwPortInitialized = TRUE;
@@ -467,7 +467,7 @@ AdvancedLoggerGetLoggerInfo (
   }
 
   PeiCoreInstance = PEI_CORE_INSTANCE_FROM_PS_THIS (PeiServices);
-  LoggerInfo      = ALI_FROM_PA (PeiCoreInstance->PlatformBlob);
+  LoggerInfo      = (ADVANCED_LOGGER_INFO *)(UINTN)PeiCoreInstance->PlatformBlob;
   if ((LoggerInfo != NULL) && (LoggerInfo->Signature == ADVANCED_LOGGER_SIGNATURE)) {
     // Logger Info was saved from an earlier call - Return LoggerInfo.
     return LoggerInfo;
@@ -520,7 +520,7 @@ AdvancedLoggerGetLoggerInfo (
       BufferSize = EFI_PAGES_TO_SIZE (Pages);
 
       Status = PeiServicesAllocatePages (
-                 EfiReservedMemoryType,
+                 EfiRuntimeServicesData,
                  Pages,
                  &NewLoggerInfo
                  );
@@ -530,7 +530,7 @@ AdvancedLoggerGetLoggerInfo (
         LoggerInfo->Signature     = ADVANCED_LOGGER_SIGNATURE;
         LoggerInfo->Version       = ADVANCED_LOGGER_VERSION;
         LoggerInfo->LogBuffer     = PA_FROM_PTR (LoggerInfo + 1);
-        LoggerInfo->LogBufferSize = (UINT32)(BufferSize - sizeof (ADVANCED_LOGGER_INFO));
+        LoggerInfo->LogBufferSize = (UINT32)(BufferSize - sizeof (ADVANCED_LOGGER_INFO) - 8);
         LoggerInfo->LogCurrent    = LoggerInfo->LogBuffer;
         LoggerInfo->HwPrintLevel  = FixedPcdGet32 (PcdAdvancedLoggerHdwPortDebugPrintErrorLevel);
         AdvancedLoggerHdwPortInitialize ();

@@ -12,10 +12,12 @@
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Library/DxeServicesTableLib.h>
 #include <Library/UefiRuntimeLib.h>
 #include <Protocol/PrmConfig.h>
 #include <Protocol/AdvancedLogger.h>
 #include <Guid/EventGroup.h>
+#include <PiDxe.h>
 #include <AdvancedLoggerInternal.h>
 #include <AdvancedLoggerInternalProtocol.h>
 
@@ -36,7 +38,9 @@ STATIC CONST EFI_GUID  mAdvLoggerOsConnectorPrmHandlerGuid = {
 // on the virtual address change event
 STATIC PRM_DATA_BUFFER           *mStaticDataBuffer = NULL;
 STATIC EFI_HANDLE                mPrmConfigProtocolHandle = NULL;
-EFI_EVENT   mVirtualAddressChangeEvent;
+// EFI_EVENT   mVirtualAddressChangeEvent;
+
+// volatile BOOLEAN DbgLoop = 1;
 
 /**
   Convert internal pointer addresses to virtual addresses.
@@ -45,17 +49,17 @@ EFI_EVENT   mVirtualAddressChangeEvent;
   @param[in] Context    The pointer to the notification function's context, which
                         is implementation-dependent.
 **/
-STATIC
-VOID
-EFIAPI
-AdvLoggerOsConnectorPrmVirtualAddressCallback (
-  IN  EFI_EVENT  Event,
-  IN  VOID       *Context
-  )
-{
-  EfiConvertPointer (0, (VOID **)mStaticDataBuffer->Data);
-  DEBUG ((DEBUG_ERROR, "OSDDEBUG converting pointer to: %x\n", *(UINT64 *)mStaticDataBuffer->Data));
-}
+// VOID
+// EFIAPI
+// AdvLoggerOsConnectorPrmVirtualAddressCallback (
+//   IN  EFI_EVENT  Event,
+//   IN  VOID       *Context
+//   )
+// {
+//   while (DbgLoop) {}
+//   EfiConvertPointer (0, (VOID **)mStaticDataBuffer->Data);
+//   DEBUG ((DEBUG_ERROR, "OSDDEBUG converting pointer to: %x\n", *(UINT64 *)mStaticDataBuffer->Data));
+// }
 
 /**
     CheckAddress
@@ -117,25 +121,10 @@ AdvLoggerOsConnectorPrmConfigLibConstructor (
   EFI_STATUS                Status;
   PRM_CONFIG_PROTOCOL       *PrmConfigProtocol = NULL;
   ADVANCED_LOGGER_PROTOCOL  *LoggerProtocol;
-  ADVANCED_LOGGER_INFO      **LoggerInfo;
+  ADVANCED_LOGGER_INFO      *LoggerInfo;
   PRM_CONTEXT_BUFFER        *PrmContextBuffer;
   UINTN                     DataBufferLength;
-
-  //
-  // Length of the data buffer = Buffer Header Size + Size of LoggerInfo pointer
-  //
-  DataBufferLength = sizeof (PRM_DATA_BUFFER_HEADER) + sizeof (ADVANCED_LOGGER_INFO *);
-
-  mStaticDataBuffer = AllocateRuntimeZeroPool (DataBufferLength);
-  if (mStaticDataBuffer == NULL) {
-    return EFI_OUT_OF_RESOURCES;
-  }
-
-  //
-  // Initialize the data buffer header
-  //
-  mStaticDataBuffer->Header.Signature = PRM_DATA_BUFFER_HEADER_SIGNATURE;
-  mStaticDataBuffer->Header.Length    = (UINT32)DataBufferLength;
+  // EFI_GCD_MEMORY_SPACE_DESCRIPTOR  Descriptor; 
 
   //
   // Locate the Logger Information block.
@@ -148,18 +137,70 @@ AdvLoggerOsConnectorPrmConfigLibConstructor (
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "%a Failed to find Advanced Logger Protocol\n", __func__));
     goto Done;
-  }
+  } 
 
-  LoggerInfo  = (ADVANCED_LOGGER_INFO **)mStaticDataBuffer->Data;
-  *LoggerInfo = LOGGER_INFO_FROM_PROTOCOL (LoggerProtocol);
-
-  if (!ValidateInfoBlock (*LoggerInfo)) {
+  mStaticDataBuffer = (PRM_DATA_BUFFER *)LOGGER_INFO_FROM_PROTOCOL (LoggerProtocol);
+  LoggerInfo = (ADVANCED_LOGGER_INFO *)mStaticDataBuffer;
+  if (!ValidateInfoBlock (LoggerInfo)) {
     DEBUG ((DEBUG_ERROR, "AdvLoggerOsConnectorPrmConfigLib Failed to validate AdvLogger region\n"));
-    *LoggerInfo = 0;
+    mStaticDataBuffer = 0;
     goto Done;
   }
+  mStaticDataBuffer = (PRM_DATA_BUFFER *)((CHAR8 *)mStaticDataBuffer - 8);
 
-  DEBUG ((DEBUG_ERROR, "OSDDEBUG got Advanced Logger Info buffer: %x\n", *(UINT64 *)(mStaticDataBuffer->Data)));
+  DEBUG ((DEBUG_ERROR, "OSDDEBUG 70 got mStaticDataBuffer: %llx\n", mStaticDataBuffer));
+
+  //
+  // Length of the data buffer = Buffer Header Size + Size of LoggerInfo pointer
+  //
+  DataBufferLength = sizeof (PRM_DATA_BUFFER_HEADER) + LoggerInfo->LogBufferSize + sizeof (*LoggerInfo);
+
+  //
+  // Initialize the data buffer header
+  //
+  mStaticDataBuffer->Header.Signature = PRM_DATA_BUFFER_HEADER_SIGNATURE;
+  mStaticDataBuffer->Header.Length    = (UINT32)DataBufferLength;
+
+  DEBUG ((DEBUG_ERROR, "OSDDEBUG 70 got mStaticDataBuffer: %llx Length: %x\n", mStaticDataBuffer, mStaticDataBuffer->Header.Length));
+
+  // Status = gDS->GetMemorySpaceDescriptor ((EFI_PHYSICAL_ADDRESS)*LoggerInfo, &Descriptor);
+  // if (EFI_ERROR (Status)) {
+  //   DEBUG ((
+  //     DEBUG_ERROR,
+  //     "%a: Error [%r] finding descriptor for advanced logger info 0x%016x.\n",
+  //     __func__,
+  //     Status,
+  //     *LoggerInfo
+  //     ));
+  //   goto Done;
+  // }
+
+  // DEBUG ((DEBUG_ERROR, "OSDDEBUG got Advanced Logger Info buffer: %x Descriptor Attributes: %llx Descriptor Type: %llx\n", *(UINT64 *)(mStaticDataBuffer->Data), Descriptor.Attributes));
+
+  // if ((Descriptor.Attributes & EFI_MEMORY_RUNTIME) == 0) {
+  //   Status = gDS->SetMemorySpaceAttributes (
+  //                   ((EFI_PHYSICAL_ADDRESS)*LoggerInfo) & ~(EFI_PAGE_MASK),
+  //                   ALIGN_VALUE ((*LoggerInfo)->LogBufferSize, EFI_PAGE_SIZE),
+  //                   // MU_CHANGE START: The memory space descriptor access attributes are not accurate. Don't pass
+  //                   //                  in access attributes so SetMemorySpaceAttributes() doesn't update them.
+  //                   //                  EFI_MEMORY_RUNTIME is not a CPU arch attribute, so calling
+  //                   //                  SetMemorySpaceAttributes() with only it set will not clear existing page table
+  //                   //                  attributes for this region, such as EFI_MEMORY_XP
+  //                   // Descriptor.Attributes | EFI_MEMORY_RUNTIME
+  //                   EFI_MEMORY_RUNTIME
+  //                   // MU_CHANGE END
+  //                   );
+  //   if (EFI_ERROR (Status)) {
+  //     DEBUG ((
+  //       DEBUG_ERROR,
+  //       "%a: Error [%r] setting EFI_MEMORY_RUNTIME for LoggerInfo 0x%016x.\n",
+  //       __func__,
+  //       Status,
+  //       *LoggerInfo
+  //       ));
+  //     goto Done;
+  //   }
+  // }
 
   //
   // Allocate and populate the context buffer
@@ -212,18 +253,18 @@ AdvLoggerOsConnectorPrmConfigLibConstructor (
     goto Done;
   }
 
-  Status = gBS->CreateEventEx (
-                  EVT_NOTIFY_SIGNAL,
-                  TPL_NOTIFY,
-                  AdvLoggerOsConnectorPrmVirtualAddressCallback,
-                  NULL,
-                  &gEfiEventVirtualAddressChangeGuid,
-                  &mVirtualAddressChangeEvent
-                  );
+  // Status = gBS->CreateEventEx (
+  //                 EVT_NOTIFY_SIGNAL,
+  //                 TPL_NOTIFY,
+  //                 AdvLoggerOsConnectorPrmVirtualAddressCallback,
+  //                 NULL,
+  //                 &gEfiEventVirtualAddressChangeGuid,
+  //                 &mVirtualAddressChangeEvent
+  //                 );
 
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "%a failed to register for virtual address callback Status %r\n", Status));
-  }
+  // if (EFI_ERROR (Status)) {
+  //   DEBUG ((DEBUG_ERROR, "%a failed to register for virtual address callback Status %r\n", Status));
+  // }
 
 Done:
   if (EFI_ERROR (Status)) {

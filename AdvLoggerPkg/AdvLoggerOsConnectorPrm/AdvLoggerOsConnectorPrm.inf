@@ -30,6 +30,7 @@
   PrintLib
   UefiDriverEntryPoint
   UefiLib
+  BaseMemoryLib
 
 [Depex]
   TRUE
