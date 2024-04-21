@@ -27,7 +27,8 @@
             "AdvLoggerPkg/AdvLoggerPkg.dec",
             "MsWheaPkg/MsWheaPkg.dec",
             "PolicyServicePkg/PolicyServicePkg.dec",
-            "ShellPkg/ShellPkg.dec"
+            "ShellPkg/ShellPkg.dec",
+            "PrmPkg/PrmPkg.dec"
         ],
         "AcceptableDependencies-HOST_APPLICATION":[ # for host based unit tests
         ],
