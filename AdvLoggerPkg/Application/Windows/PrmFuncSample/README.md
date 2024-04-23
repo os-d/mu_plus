@@ -1,7 +1,8 @@
 # Advanced Logger PRM Sample Driver
 
 The Advanced Logger PRM sample driver demonstrates how to write a KMDF driver to utlize the Windows Platform Runtime
-Mechanism (PRM) direct-call interface to talk to the [Advanced Logger PRM](../../../AdvLoggerOsConnectorPrm) to fetch the log and write it to a file.
+Mechanism (PRM) direct-call interface to talk to the [Advanced Logger PRM](../../../AdvLoggerOsConnectorPrm)
+to fetch the log and write it to a file.
 
 This driver is based on the Windows Driver Sample [PrmFuncSample driver](https://github.com/microsoft/Windows-driver-samples/tree/develop/prm).
 
@@ -16,12 +17,15 @@ tools for your architecture. Click Build->Build Solution.
 ## Running
 
 Copy the output binaries to the target system. Start the driver by opening Cmd Prompt and running:
+
 - `sc create PrmSample binPath="{PATH_TO_BINS/prmfuncsample.sys}" type=kernel`
 - `sc start PrmSample`
 
-The driver will write the log to `C:\AdvLogger.log`. You can then use [DecodeUefiLog.py](../../DecodeUefiLog/ReadMe.md) to decode the log.
+The driver will write the log to `C:\AdvLogger.log`. You can then use [DecodeUefiLog.py](../../DecodeUefiLog/ReadMe.md)
+to decode the log.
 
 You can unload the driver by doing:
+
 - `sc stop PrmSample`
 
 Further loading of the driver will fetch the current log and overwrite `C:\AdvLogger.log`.
